@@ -61,7 +61,7 @@ def processRequest(req):
 
     print('titles: ', titles)
 
-    speech_text = 'Articles about ' + subject.get('name')
+    speech_text = 'Articles about {}, '.format(subject.get('name'))
     speech_text += ', '.join(titles)
 
     display_text = speech_text
