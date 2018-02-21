@@ -8,6 +8,8 @@ from flask import make_response
 from flask import request
 from urllib2 import Request, urlopen
 
+import requests
+
 # Flask app should start in global layout
 app = Flask(__name__)
 
@@ -26,35 +28,53 @@ def webhook():
 
 
 def processRequest(req):
+    # curl -v "https://api.elifesciences.org/search?subject\[\]=neuroscience&order=desc&per-page=5" | jq .items[].title
+
     if req.get('result').get('action') != "articles.list":
         return {}
 
-    subject = req.get('result').get('parameters').get('subject')
+    subject_id = req.get('result').get('parameters').get('subject')
 
     api_gateway_uri = 'https://prod--gateway.elifesciences.org'
 
-    q = Request(api_gateway_uri + '/subjects/' + subject)
+    q = Request(api_gateway_uri + '/subjects/' + subject_id)
+
     q.add_header('Accept', 'application/vnd.elife.subject+json;version=1')
 
-    print api_gateway_uri + '/subjects/' + subject
+    print(api_gateway_uri + '/subjects/' + subject_id)
     print(q.headers)
 
     subject = urlopen(q)
+
+    titles_url = "https://api.elifesciences.org/search?subject[]={subject}&order=desc&per-page=5".format(subject=subject_id)
+    titles_response = requests.get(url=titles_url)
+
+    if titles_response.status_code != 200:
+        return {}
 
     if subject.getcode() != 200:
         return {}
 
     subject = json.loads(subject.read())
 
+    titles = [item['title'] for item in titles_response.json()['items']]
+
+    print('titles: ', titles)
+
+    speech_text = 'Articles about ' + subject.get('name')
+    speech_text += ', '.join(titles)
+
+    display_text = speech_text
+
     return {
-        'speech': 'Articles about ' + subject.get('name'),
-        'displayText': 'Articles about ' + subject.get('name')
+        'speech': speech_text,
+        'displayText': display_text,
     }
 
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
+    port = int(os.getenv('PORT', 5001))
 
-    print "Starting app on port %d" % port
+    print("Starting app on port %d" % port)
 
-    app.run(debug=False, port=port, host='0.0.0.0')
+    app.run(debug=True, port=port, host='0.0.0.0')
